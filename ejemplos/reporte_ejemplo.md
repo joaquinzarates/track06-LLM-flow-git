@@ -1,36 +1,33 @@
 # Reporte de Revisión de Código
 
-**Fecha:** 2026-06-12 10:25
+**Fecha:** 2026-06-12 10:59
 **Comparación:** `archivo` → `ejemplos\repo_prueba\cambios.diff`
-**Total de hallazgos:** 9
+**Total de hallazgos:** 6
 
 ## Resumen Ejecutivo
 
-El análisis del código revela múltiples vulnerabilidades de seguridad, errores potenciales, y problemas de estilo y rendimiento, principalmente debido a credenciales hardcodeadas, inyección SQL, uso inseguro de criptografía y falta de buenas prácticas de programación.
+Este análisis de código identifica varias vulnerabilidades de seguridad críticas, incluyendo credenciales hardcodeadas y inyección SQL, así como el uso de un algoritmo criptográfico débil. También se detectaron errores potenciales por la falta de manejo de casos límite y problemas de rendimiento relacionados con la gestión de conexiones a bases de datos. Finalmente, se encontraron oportunidades de mejora en el estilo y mantenibilidad del código debido a la duplicación de lógica y nombres no descriptivos.
 
 ## Tabla de Hallazgos
 
 | # | Categoría | Severidad | Título |
 |---|-----------|-----------|--------|
-| 1 | seguridad | 🔴 alta | Credenciales y secretos hardcodeados |
-| 2 | seguridad | 🔴 alta | Usuarios y contraseñas hardcodeados para autenticación |
-| 3 | error_potencial | 🟡 media | Falta de manejo de usuario no encontrado en la verificación |
-| 4 | seguridad | 🔴 alta | Uso de MD5 para generación de tokens |
-| 5 | seguridad | 🔴 alta | Vulnerabilidad de inyección SQL en `buscar_usuario` |
-| 6 | rendimiento | 🟡 media | Conexiones de base de datos SQLite no cerradas |
-| 7 | estilo | 🟢 baja | Nombres de funciones y variables no descriptivos |
-| 8 | estilo | 🟢 baja | Uso de 'números mágicos' |
-| 9 | estilo | 🟢 baja | Lógica duplicada en funciones |
+| 1 | seguridad | 🔴 alta | Credenciales y claves sensibles hardcodeadas |
+| 2 | seguridad | 🟡 media | Uso de algoritmo hash criptográfico débil (MD5) |
+| 3 | error_potencial | 🟡 media | Falta de manejo de usuario no encontrado en verificación |
+| 4 | seguridad | 🔴 alta | Vulnerabilidad de Inyección SQL |
+| 5 | rendimiento | 🟡 media | Conexiones a la base de datos no cerradas explícitamente |
+| 6 | estilo | 🟢 baja | Lógica duplicada, nombres no descriptivos y números mágicos |
 
 ## Detalle de Hallazgos
 
-### 1. Credenciales y secretos hardcodeados
+### 1. Credenciales y claves sensibles hardcodeadas
 
 **Categoría:** seguridad  
 **Severidad:** 🔴 alta  
-**OWASP:** A02:2025 - Security Misconfiguration  
+**OWASP:** A04:2025 - Cryptographic Failures  
 **Descripción:**  
-Las credenciales y claves secretas están hardcodeadas directamente en el código fuente. Esto representa un riesgo de seguridad crítico, ya que cualquier persona con acceso al código fuente obtendrá acceso a estos secretos, comprometiendo la seguridad del sistema en producción.
+Credenciales de base de datos (`DB_PASSWORD`), claves secretas (`SECRET_KEY`) y tokens de API (`API_TOKEN`) están codificados directamente en el código fuente. Esto representa un riesgo de seguridad crítico, ya que cualquier persona con acceso al código puede obtener estas credenciales, lo que podría llevar a un acceso no autorizado al sistema o a la exposición de datos sensibles. El comentario en el código hace referencia a A04:2025.
 
 **Fragmento de código:**
 ```
@@ -40,149 +37,105 @@ API_TOKEN = "sk-prod-abc123xyz789"
 ```
 
 **Recomendación:**  
-Utiliza variables de entorno o un sistema de gestión de secretos seguro (como HashiCorp Vault, AWS Secrets Manager) para almacenar y acceder a las credenciales y claves secretas. Nunca las incluyas directamente en el código fuente.
+Utilizar un sistema de gestión de secretos (ej. HashiCorp Vault, AWS Secrets Manager, Azure Key Vault) o variables de entorno para almacenar y acceder de forma segura a las credenciales y claves sensibles.
 
 ---
 
-### 2. Usuarios y contraseñas hardcodeados para autenticación
+### 2. Uso de algoritmo hash criptográfico débil (MD5)
 
 **Categoría:** seguridad  
-**Severidad:** 🔴 alta  
-**OWASP:** A07:2025 - Authentication Failures  
+**Severidad:** 🟡 media  
+**OWASP:** A04:2025 - Cryptographic Failures  
 **Descripción:**  
-La lógica de autenticación en la función `verificar_usuario` utiliza un diccionario de usuarios y contraseñas hardcodeado. Esto es extremadamente inseguro, ya que las credenciales están expuestas, son difíciles de mantener y no permiten una gestión de usuarios escalable o segura. Además, las contraseñas no están hasheadas.
+La función `generar_token` utiliza MD5 para generar un hash. MD5 es un algoritmo criptográfico obsoleto y considerado inseguro debido a su susceptibilidad a colisiones de hash. Si este token se utiliza para autenticación o identificación crítica, un atacante podría explotar las debilidades de MD5 para generar tokens maliciosos o suplantar identidades.
 
 **Fragmento de código:**
 ```
-    usuarios = {
-        "admin": "admin123",
-        "root": "root1234"
-    }
+return hashlib.md5(usuario.encode()).hexdigest()
 ```
 
 **Recomendación:**  
-Implementa un sistema de gestión de usuarios adecuado, preferiblemente con una base de datos. Las contraseñas deben ser hasheadas de forma segura utilizando algoritmos robustos (ej. bcrypt, Argon2) y nunca almacenarse en texto plano.
+Reemplazar MD5 por un algoritmo de hashing criptográfico moderno y robusto, como SHA-256 o SHA-3.
 
 ---
 
-### 3. Falta de manejo de usuario no encontrado en la verificación
+### 3. Falta de manejo de usuario no encontrado en verificación
 
 **Categoría:** error_potencial  
 **Severidad:** 🟡 media  
 
 **Descripción:**  
-La función `verificar_usuario` intenta acceder directamente a `usuarios[usuario]`. Si el `usuario` no se encuentra en el diccionario `usuarios`, se producirá un `KeyError`, lo que podría llevar a una falla inesperada de la aplicación o una excepción no manejada.
+La función `verificar_usuario` intenta acceder directamente a `usuarios[usuario]` sin verificar si la clave `usuario` existe en el diccionario. Si se proporciona un usuario que no existe, esto provocará un `KeyError`, lo que resultará en un fallo inesperado de la aplicación en lugar de una verificación de credenciales fallida y controlada.
 
 **Fragmento de código:**
 ```
+def verificar_usuario(usuario, password):
+    usuarios = {
+        "admin": "admin123",
+        "root": "root1234"
+    }
     return usuarios[usuario] == password
 ```
 
 **Recomendación:**  
-Asegúrate de verificar la existencia del usuario en el diccionario antes de intentar acceder a él. Por ejemplo, `if usuario in usuarios: return usuarios[usuario] == password else: return False`.
+Asegurar que el usuario existe en el diccionario antes de intentar acceder a su valor, por ejemplo, usando el método `dict.get()` con un valor por defecto o una comprobación `if usuario in usuarios:`.
 
 ---
 
-### 4. Uso de MD5 para generación de tokens
-
-**Categoría:** seguridad  
-**Severidad:** 🔴 alta  
-**OWASP:** A04:2025 - Cryptographic Failures  
-**Descripción:**  
-La función `generar_token` utiliza el algoritmo de hash MD5 para generar tokens. MD5 es un algoritmo criptográficamente roto, vulnerable a colisiones y no es adecuado para propósitos de seguridad como la generación de tokens que podrían ser utilizados para autenticación o autorización.
-
-**Fragmento de código:**
-```
-    return hashlib.md5(usuario.encode()).hexdigest()
-```
-
-**Recomendación:**  
-Utiliza un método criptográficamente seguro para generar tokens, como el módulo `secrets` de Python para tokens aleatorios seguros, o una biblioteca robusta para JSON Web Tokens (JWT) si se necesita información incrustada.
-
----
-
-### 5. Vulnerabilidad de inyección SQL en `buscar_usuario`
+### 4. Vulnerabilidad de Inyección SQL
 
 **Categoría:** seguridad  
 **Severidad:** 🔴 alta  
 **OWASP:** A05:2025 - Injection  
 **Descripción:**  
-La función `buscar_usuario` construye la consulta SQL directamente usando f-strings e incrusta el parámetro `nombre` sin sanitización o el uso de consultas parametrizadas. Esto abre la puerta a ataques de inyección SQL, permitiendo a un atacante manipular la consulta de la base de datos o ejecutar comandos SQL arbitrarios.
+La consulta SQL en la función `buscar_usuario` se construye concatenando directamente la variable `nombre` dentro de la cadena de consulta (f-string). Esto expone la aplicación a ataques de Inyección SQL, donde un atacante podría manipular la entrada `nombre` para ejecutar comandos SQL arbitrarios en la base de datos, lo que podría llevar a la divulgación, modificación o eliminación no autorizada de datos.
 
 **Fragmento de código:**
 ```
-    query = f"SELECT * FROM usuarios WHERE nombre = '{nombre}'"
+query = f"SELECT * FROM usuarios WHERE nombre = '{nombre}'"
 ```
 
 **Recomendación:**  
-Utiliza consultas parametrizadas para prevenir la inyección SQL. Modifica la ejecución de la consulta a: `cursor.execute("SELECT * FROM usuarios WHERE nombre = ?", (nombre,))`.
+Utilizar consultas parametrizadas o marcadores de posición para pasar los valores a la consulta SQL. Esto es la forma segura de prevenir inyecciones SQL. Por ejemplo: `cursor.execute("SELECT * FROM usuarios WHERE nombre = ?", (nombre,))`.
 
 ---
 
-### 6. Conexiones de base de datos SQLite no cerradas
+### 5. Conexiones a la base de datos no cerradas explícitamente
 
 **Categoría:** rendimiento  
 **Severidad:** 🟡 media  
 
 **Descripción:**  
-En las funciones `buscar_usuario` y `obtener_todos_los_registros`, se abre una conexión a la base de datos (`sqlite3.connect("usuarios.db")`), pero esta conexión nunca se cierra explícitamente. Esto puede llevar a fugas de recursos, bloqueos de archivos y degradación del rendimiento de la aplicación con el tiempo.
+En ambas funciones `buscar_usuario` y `obtener_todos_los_registros`, se abre una conexión a la base de datos SQLite, pero no se cierra explícitamente después de completar la operación. Esto puede llevar a la acumulación de conexiones abiertas, agotamiento de recursos del sistema y, potencialmente, bloqueos de archivos de base de datos, especialmente en entornos de mayor concurrencia o en el caso de errores.
 
 **Fragmento de código:**
 ```
+def buscar_usuario(nombre):
     conn = sqlite3.connect("usuarios.db")
+    cursor = conn.cursor()
+    query = f"SELECT * FROM usuarios WHERE nombre = '{nombre}'"
+    cursor.execute(query)
+    return cursor.fetchall()
+
+def obtener_todos_los_registros():
+    conn = sqlite3.connect("usuarios.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM logs")
+    return cursor.fetchall()
 ```
 
 **Recomendación:**  
-Asegúrate de cerrar la conexión de la base de datos después de cada operación. La mejor práctica es usar un bloque `with` para asegurar que la conexión se cierre automáticamente: `with sqlite3.connect("usuarios.db") as conn:`.
+Asegurarse de cerrar las conexiones a la base de datos después de cada operación. Se recomienda usar un bloque `with` para la gestión automática de la conexión, lo cual garantiza que la conexión se cierre incluso si ocurren errores. Ejemplo: `with sqlite3.connect("usuarios.db") as conn:`.
 
 ---
 
-### 7. Nombres de funciones y variables no descriptivos
+### 6. Lógica duplicada, nombres no descriptivos y números mágicos
 
 **Categoría:** estilo  
 **Severidad:** 🟢 baja  
 
 **Descripción:**  
-Las funciones `p` y `calc` tienen nombres muy genéricos y no descriptivos. De manera similar, las variables `l`, `r` e `i` dentro de estas funciones son de una sola letra, lo que dificulta la comprensión del propósito del código y reduce la mantenibilidad.
-
-**Fragmento de código:**
-```
-def p(l):
-def calc(l):
-```
-
-**Recomendación:**  
-Utiliza nombres de funciones y variables que describan claramente su propósito y contenido (por ejemplo, `process_list_items`, `calculate_modified_values`, `input_list`, `result_list`, `item`).
-
----
-
-### 8. Uso de 'números mágicos'
-
-**Categoría:** estilo  
-**Severidad:** 🟢 baja  
-
-**Descripción:**  
-El código utiliza valores numéricos (`1.16`, `0`, `100`) directamente incrustados en la lógica sin explicación o asignación a constantes con nombres significativos. Esto hace que el código sea menos legible, más difícil de entender su propósito y propenso a errores si estos valores cambian en el futuro.
-
-**Fragmento de código:**
-```
-        if i > 0:
-            r.append(i * 1.16)
-    return precio - (precio * d / 100)
-```
-
-**Recomendación:**  
-Define constantes con nombres descriptivos para estos valores (ej. `FACTOR_INCREMENTO = 1.16`, `UMBRAL_MINIMO = 0`, `DIVISOR_PORCENTAJE = 100`) al principio del módulo o dentro de la función si su ámbito es local.
-
----
-
-### 9. Lógica duplicada en funciones
-
-**Categoría:** estilo  
-**Severidad:** 🟢 baja  
-
-**Descripción:**  
-Las funciones `p` y `calc` tienen una implementación idéntica. La duplicación de código dificulta el mantenimiento, ya que cualquier corrección de errores o cambio de funcionalidad debe aplicarse en múltiples lugares, aumentando la probabilidad de introducir inconsistencias.
+Las funciones `p` y `calc` tienen exactamente la misma lógica, lo que representa una duplicación de código. Esto dificulta el mantenimiento, la lectura y la actualización del software. Además, los nombres de las funciones (`p`, `calc`) y el parámetro (`l`) no son descriptivos. El número `1.16` es un 'número mágico' cuyo significado no es inmediatamente obvio, reduciendo la claridad del código. Similarmente, el parámetro `d` en la función `descuento` no es descriptivo.
 
 **Fragmento de código:**
 ```
@@ -199,9 +152,11 @@ def calc(l):
         if i > 0:
             r.append(i * 1.16)
     return r
+
+def descuento(precio, d):
 ```
 
 **Recomendación:**  
-Consolida la lógica duplicada en una única función con un nombre descriptivo. Las otras funciones pueden llamar a esta función común si se requiere la misma operación bajo diferentes nombres de punto de entrada.
+Consolidar la lógica duplicada en una única función con un nombre descriptivo (ej. `aplicar_impuesto` o `incrementar_valores_positivos`). Reemplazar los 'números mágicos' con constantes con nombres significativos. Renombrar los parámetros `l` y `d` a algo más claro como `lista_valores` y `porcentaje_descuento`.
 
 ---
