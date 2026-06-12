@@ -1,0 +1,47 @@
+﻿diff --git a/ejemplos/repo_prueba/auth.py b/ejemplos/repo_prueba/auth.py
+new file mode 100644
+index 0000000..d901e3c
+--- /dev/null
++++ b/ejemplos/repo_prueba/auth.py
+@@ -0,0 +1,17 @@
++import hashlib
++
++# Defecto 2 - Seguridad: Credenciales hardcodeadas (OWASP A04:2025)
++# Defecto 3 - Error potencial: sin manejo de usuario no encontrado
++DB_PASSWORD = "admin123"
++SECRET_KEY = "clave-super-secreta-produccion"
++API_TOKEN = "sk-prod-abc123xyz789"
++
++def verificar_usuario(usuario, password):
++    usuarios = {
++        "admin": "admin123",
++        "root": "root1234"
++    }
++    return usuarios[usuario] == password
++
++def generar_token(usuario):
++    return hashlib.md5(usuario.encode()).hexdigest()
+\ No newline at end of file
+diff --git a/ejemplos/repo_prueba/database.py b/ejemplos/repo_prueba/database.py
+new file mode 100644
+index 0000000..6093c76
+--- /dev/null
++++ b/ejemplos/repo_prueba/database.py
+@@ -0,0 +1,16 @@
++import sqlite3
++
++# Defecto 1 - Seguridad: Inyecci├│n SQL (OWASP A05:2025)
++# Defecto 4 - Rendimiento: conexi├│n no cerrada, sin ├¡ndice
++def buscar_usuario(nombre):
++    conn = sqlite3.connect("usuarios.db")
++    cursor = conn.cursor()
++    query = f"SELECT * FROM usuarios WHERE nombre = '{nombre}'"
++    cursor.execute(query)
++    return cursor.fetchall()
++
++def obtener_todos_los_registros():
++    conn = sqlite3.connect("usuarios.db")
++    cursor = conn.cursor()
++    cursor.execute("SELECT * FROM logs")
++    return cursor.fetchall()
+\ No newline at end of file
