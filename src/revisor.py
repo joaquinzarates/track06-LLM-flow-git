@@ -20,22 +20,18 @@ def dividir_diff_por_archivo(diff):
     return archivos
 
 def revisar_diff(diff):
-    cliente = genai.Client(api_key=GEMINI_API_KEY)
-    prompt_sistema = cargar_prompt_sistema()
-    fragmentos = dividir_diff_por_archivo(diff)
-    todos_hallazgos = []
-    resumen_partes = []
-
-    for fragmento in fragmentos:
-        resultado = _llamar_modelo_con_reintento(cliente, prompt_sistema, fragmento)
-        if resultado:
-            todos_hallazgos.extend(resultado.get("hallazgos", []))
-            resumen_partes.append(resultado.get("resumen", ""))
-
+    genai.configure(api_key=GEMINI_API_KEY)
+    modelo = genai.GenerativeModel(
+        model_name=MODELO,
+        system_instruction=cargar_prompt_sistema()
+    )
+    resultado = _llamar_modelo_con_reintento(modelo, diff,3)
+    if resultado:
+        return resultado
     return {
-        "resumen": " ".join(resumen_partes),
-        "total_hallazgos": len(todos_hallazgos),
-        "hallazgos": todos_hallazgos
+        "resumen": "No se pudo obtener respuesta del modelo.",
+        "total_hallazgos": 0,
+        "hallazgos": []
     }
 
 def _llamar_modelo_con_reintento(cliente, prompt_sistema, diff, intentos=3):
@@ -73,3 +69,4 @@ def _validar_respuesta(texto):
     except (json.JSONDecodeError, AssertionError):
         print("Respuesta del LLM con formato inesperado.")
         return None
+    
