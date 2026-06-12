@@ -1,7 +1,7 @@
 import json
 import time
 import google.genai as genai
-from config import GEMINI_API_KEY, MODELO, MAX_TOKENS
+from config import GEMINI_API_KEY, MODELO, MAX_OUTPUT_TOKENS
 
 def cargar_prompt_sistema():
     with open("prompts/system_revisor.txt", "r", encoding="utf-8") as f:
@@ -20,18 +20,14 @@ def dividir_diff_por_archivo(diff):
     return archivos
 
 def revisar_diff(diff):
-    genai.configure(api_key=GEMINI_API_KEY)
-    modelo = genai.GenerativeModel(
-        model_name=MODELO,
-        system_instruction=cargar_prompt_sistema()
-    )
-
+    cliente = genai.Client(api_key=GEMINI_API_KEY)
+    prompt_sistema = cargar_prompt_sistema()
     fragmentos = dividir_diff_por_archivo(diff)
     todos_hallazgos = []
     resumen_partes = []
 
     for fragmento in fragmentos:
-        resultado = _llamar_modelo_con_reintento(modelo, fragmento)
+        resultado = _llamar_modelo_con_reintento(cliente, prompt_sistema, fragmento)
         if resultado:
             todos_hallazgos.extend(resultado.get("hallazgos", []))
             resumen_partes.append(resultado.get("resumen", ""))
@@ -42,12 +38,18 @@ def revisar_diff(diff):
         "hallazgos": todos_hallazgos
     }
 
-def _llamar_modelo_con_reintento(modelo, diff, intentos=3):
+def _llamar_modelo_con_reintento(cliente, prompt_sistema, diff, intentos=3):
     for intento in range(intentos):
         try:
-            respuesta = modelo.generate_content(
-                f"Analiza el siguiente diff:\n\n{diff}",
-                generation_config={"max_output_tokens": MAX_TOKENS}
+            respuesta = cliente.models.generate_content(
+                model=MODELO,
+                contents=[
+                    {"role": "user", "parts": [{"text": f"Analiza el siguiente diff:\n\n{diff}"}]}
+                ],
+                config={
+                    "system_instruction": prompt_sistema,
+                    "max_output_tokens": MAX_OUTPUT_TOKENS
+                }
             )
             return _validar_respuesta(respuesta.text)
         except Exception as e:
@@ -57,6 +59,7 @@ def _llamar_modelo_con_reintento(modelo, diff, intentos=3):
                 print(f"Error tras {intentos} intentos: {e}")
                 return None
 
+                
 def _validar_respuesta(texto):
     texto = texto.strip()
     if texto.startswith("```"):
