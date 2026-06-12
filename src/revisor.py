@@ -1,6 +1,6 @@
 import json
 import time
-import google.genai as genai
+from google import genai
 from config import GEMINI_API_KEY, MODELO, MAX_OUTPUT_TOKENS
 
 def cargar_prompt_sistema():
@@ -19,13 +19,10 @@ def dividir_diff_por_archivo(diff):
         archivos.append("".join(actual))
     return archivos
 
-def revisar_diff(diff):
-    genai.configure(api_key=GEMINI_API_KEY)
-    modelo = genai.GenerativeModel(
-        model_name=MODELO,
-        system_instruction=cargar_prompt_sistema()
-    )
-    resultado = _llamar_modelo_con_reintento(modelo, diff,3)
+def revisar_diff(diff: str):
+    cliente = genai.Client(api_key=GEMINI_API_KEY)
+    prompt_sistema = cargar_prompt_sistema()
+    resultado = _llamar_modelo_con_reintento(cliente, prompt_sistema, diff)
     if resultado:
         return resultado
     return {
@@ -48,6 +45,7 @@ def _llamar_modelo_con_reintento(cliente, prompt_sistema, diff, intentos=3):
                 }
             )
             return _validar_respuesta(respuesta.text)
+        
         except Exception as e:
             if intento < intentos - 1:
                 time.sleep(2 ** intento)
@@ -56,7 +54,8 @@ def _llamar_modelo_con_reintento(cliente, prompt_sistema, diff, intentos=3):
                 return None
 
                 
-def _validar_respuesta(texto):
+def _validar_respuesta(texto:str):
+    
     texto = texto.strip()
     if texto.startswith("```"):
         texto = texto.split("\n", 1)[-1]
@@ -67,6 +66,6 @@ def _validar_respuesta(texto):
         assert "total_hallazgos" in datos
         return datos
     except (json.JSONDecodeError, AssertionError):
-        print("Respuesta del LLM con formato inesperado.")
+        print("Respuesta del LLM tiene un formato inesperado.")
         return None
     

@@ -6,11 +6,13 @@ def obtener_diff_desde_git(ruta_repo, ref_base, ref_destino):
         raise ValueError(f"La ruta especificada no existe: {ruta_repo}")
 
     resultado = subprocess.run(
-        ["git", "diff", ref_base, ref_destino],
-        cwd=ruta_repo,
-        capture_output=True,
-        text=True
-    )
+    ["git", "diff", ref_base, ref_destino],
+    cwd=ruta_repo,
+    capture_output=True,
+    text=True,
+    encoding="utf-8",
+    errors="replace"
+)
 
     if resultado.returncode != 0:
         raise RuntimeError(f"Error ejecutando git diff: {resultado.stderr}")

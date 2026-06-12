@@ -7,7 +7,7 @@ load_dotenv(dotenv_path=BASE_DIR / ".env")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 MODELO = "gemini-2.5-flash"
-MAX_TOKENS = 8192
+MAX_OUTPUT_TOKENS = 8192
 
 def validar_configuracion():
     if not GEMINI_API_KEY:
