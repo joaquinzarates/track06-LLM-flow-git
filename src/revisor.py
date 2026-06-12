@@ -1,6 +1,6 @@
 import json
 import time
-import google.generativeai as genai
+import google.genai as genai
 from config import GEMINI_API_KEY, MODELO, MAX_TOKENS
 
 def cargar_prompt_sistema():
